@@ -1,3 +1,4 @@
 irisenv/ 
 __pycache__/ 
 *.pyc 
+yolov8x.pt 

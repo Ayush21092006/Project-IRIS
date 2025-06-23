@@ -3,7 +3,7 @@ import os
 
 def load_yolo_model():
     custom_model = "iris_best.pt"
-    coco_model = "yolov8n.pt"
+    coco_model = "yolov8s.pt"
 
     if os.path.exists(custom_model):
         return YOLO(custom_model), "custom"
