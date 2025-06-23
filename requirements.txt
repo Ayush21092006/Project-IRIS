@@ -1,0 +1,14 @@
+torch
+torchvision
+torchaudio
+transformers
+sentencepiece
+accelerate
+easyocr
+ultralytics
+opencv-python
+scikit-image
+gradio
+streamlit
+matplotlib
+python-dotenv

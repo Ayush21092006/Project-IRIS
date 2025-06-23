@@ -1,0 +1,5 @@
+train: images/train
+val: images/train
+
+nc: 5
+names: ['pothole', 'person_with_helmet', 'person_without_helmet', 'seatbelt_on', 'seatbelt_off']

@@ -1,0 +1,66 @@
+{
+    "2025-06-21T12:16:24.899899": {
+        "objects": [
+            "handbag",
+            "dog",
+            "person"
+        ],
+        "outfits": [
+            "Unknown"
+        ],
+        "texts": []
+    },
+    "2025-06-21T12:16:38.184275": {
+        "objects": [
+            "car"
+        ],
+        "outfits": [],
+        "texts": []
+    },
+    "2025-06-21T12:21:37.928629": {
+        "objects": [
+            "car"
+        ],
+        "outfits": [],
+        "texts": [
+            "Disvr PIXAR"
+        ]
+    },
+    "2025-06-21T12:22:17.377953": {
+        "objects": [
+            "handbag",
+            "dog",
+            "person"
+        ],
+        "outfits": [
+            "Unknown"
+        ],
+        "texts": []
+    },
+    "2025-06-21T12:28:14.760479": {
+        "objects": [
+            "chair",
+            "person"
+        ],
+        "outfits": [
+            "Unknown"
+        ],
+        "texts": [
+            "chair",
+            "person"
+        ]
+    },
+    "2025-06-21T12:28:52.468169": {
+        "objects": [
+            "chair",
+            "person",
+            "backpack"
+        ],
+        "outfits": [
+            "Unknown"
+        ],
+        "texts": [
+            "person"
+        ]
+    }
+}
