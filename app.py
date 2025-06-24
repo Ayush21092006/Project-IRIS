@@ -61,7 +61,7 @@ def load_models():
 yolo_model, model_type, caption_processor, caption_model = load_models()
 
 if yolo_model is None:
-    st.warning("⚠️ No YOLO model found. Place `iris_best.pt` or `yolov8n.pt` in the root folder.")
+    st.warning("⚠ No YOLO model found. Place iris_best.pt or yolov8n.pt in the root folder.")
 else:
     st.success(f"✅ Using {'Custom IRIS Model' if model_type == 'custom' else 'COCO Pretrained Model'}")
 
@@ -100,18 +100,14 @@ with tab1:
 
         with col2:
             st.image(img_with_boxes, caption="Detections", use_column_width=True)
-        if detected_text: 
 
-             st.markdown(f"<h3 style='color:#006400;'>📝 Scene Caption:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
+        if caption:
+            st.markdown(f"<h3 style='color:#006400;'>📝 Scene Caption:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
 
         if detected_text:
             st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
-        if st.button("🔊 Speak Caption and Text"):
-            speak(caption)
-            if detected_text:
-                speak("Detected text: " + detected_text)
 
-        if st.button("🔊 Speak Caption and Text"):
+        if st.button("🔊 Speak Caption and Text", key="speak_caption_image"):
             speak(caption)
             if detected_text:
                 speak("Detected text: " + detected_text)
@@ -130,7 +126,7 @@ with tab2:
         temp_file.write(video_file.read())
         cap = cv2.VideoCapture(temp_file.name)
         st_frame = st.empty()
-        stop_btn = st.button("⏹ Stop")
+        stop_btn = st.button("⏹ Stop", key="stop_video")
 
         last_frame = None
 
@@ -165,7 +161,7 @@ with tab2:
             if detected_text:
                 st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
 
-            if st.button("🔊 Speak Final Summary"):
+            if st.button("🔊 Speak Final Summary", key="speak_summary_video"):
                 speak(caption)
                 if detected_text:
                     speak("Detected text: " + detected_text)
@@ -208,7 +204,7 @@ with tab3:
         cam.release()
 
 # -----------------------
-# HISTORY (SIDEBAR REMOVED AS PER REQUEST)
+# HISTORY
 # -----------------------
 st.markdown("---")
 st.subheader("🕒 Detection History (Last 5)")
@@ -216,7 +212,7 @@ history = load_history()
 if history:
     for entry in history[-5:][::-1]:
         st.image(entry['img'], width=400)
-        st.markdown(f"🕓 **{entry['time']}**")
+        st.markdown(f"🕓 *{entry['time']}*")
         st.success(f"Caption: {entry['caption']}")
         st.markdown("---")
 else:
