@@ -149,6 +149,7 @@ with tab1:
             if st.button("🔊 Speak Caption"):
                 speak_text(caption)
 
+
         with st.expander("❓ Ask a Question About the Image"):
             question = st.text_input("Your Question")
             if question:
@@ -171,6 +172,21 @@ with tab1:
 
         with st.expander("📜 Detection History (Last 5 Images)"):
             st.dataframe(st.session_state.history)
+
+        with col2:
+            st.image(img_with_boxes, caption="Detections", use_column_width=True)
+
+        if caption:
+            st.markdown(f"<h3 style='color:#006400;'>📝 Scene Caption:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
+
+        if detected_text:
+            st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
+
+        if st.button("🔊 Speak Caption and Text", key="speak_caption_image"):
+            speak(caption)
+            if detected_text:
+                speak("Detected text: " + detected_text)
+
 
 # ---- VIDEO TAB ----
 with tab2:
@@ -206,7 +222,30 @@ with tab2:
                 stframe.image(frame_rgb, channels="RGB", use_container_width=True)
             cap.release()
 
-# ---- LIVE CAMERA TAB ----
+            st_frame.image(frame, channels="BGR", use_column_width=True)
+
+        cap.release()
+
+        if last_frame is not None:
+            st.success("✅ Video Analysis Complete")
+            caption = generate_caption(Image.fromarray(last_frame), caption_processor, caption_model)
+            detected_text = extract_text_easyocr(cv2.cvtColor(last_frame, cv2.COLOR_BGR2RGB))
+
+            st.markdown(f"<h3 style='color:#006400;'>📝 Final Summary:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
+
+            if detected_text:
+                st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
+
+            if st.button("🔊 Speak Final Summary", key="speak_summary_video"):
+                speak(caption)
+                if detected_text:
+                    speak("Detected text: " + detected_text)
+
+            save_to_history(objects=labels, img=last_frame, caption_text=caption)
+
+# -----------------------
+# LIVE CAMERA TAB
+# -----------------------
 with tab3:
     st.header("📷 Start Live Camera Detection")
     if st.button("🎥 Start Camera"):
@@ -231,5 +270,24 @@ with tab3:
                     cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                     cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
-        cap.release()
+            cam_window.image(frame, channels="BGR", use_column_width=True)
+
+            if st.button("⏹ Stop", key="stop_live"):
+                run = False
+
+        cam.release()
+
+# -----------------------
+# HISTORY
+# -----------------------
+st.markdown("---")
+st.subheader("🕒 Detection History (Last 5)")
+history = load_history()
+if history:
+    for entry in history[-5:][::-1]:
+        st.image(entry['img'], width=400)
+        st.markdown(f"🕓 *{entry['time']}*")
+        st.success(f"Caption: {entry['caption']}")
+        st.markdown("---")
+else:
+    st.info("No history yet.")
