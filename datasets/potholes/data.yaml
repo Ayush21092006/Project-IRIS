@@ -1,0 +1,5 @@
+train: C:/Users/DS COMPUTERS/Desktop/project iris/datasets/potholes/train/images
+val: C:/Users/DS COMPUTERS/Desktop/project iris/datasets/potholes/valid/images
+test: C:/Users/DS COMPUTERS/Desktop/project iris/datasets/potholes/test/images
+nc: 1
+names: ["pothole"]

@@ -1,223 +1,235 @@
 import streamlit as st
 import cv2
+from ultralytics import YOLO
 import numpy as np
 from PIL import Image
 import tempfile
-import pyttsx3
-import pygame
-import time
 import os
+import torch
+from transformers import BlipProcessor, BlipForConditionalGeneration
 import easyocr
+import pyttsx3
+from datetime import datetime
 
-from utils.yolo_detect import load_yolo_model, detect_objects
-from utils.captioning import load_caption_model, generate_caption
-from utils.history import save_to_history, load_history
+# ---- MODEL PATHS ----
+CUSTOM_MODEL_PATH = "models/pothole_yolov8n.pt"
+COCO_MODEL_PATH = "models/coco/yolov8s.pt"
 
-# ======================
-# INIT
-# ======================
-pygame.mixer.init()
-engine = pyttsx3.init()
-ocr_reader = easyocr.Reader(['en'])
-ALERT_SOUND = "alert.wav"
-confidence = 0.5
-alert_mode = "Both"
+# ---- CHECK & LOAD MODELS ----
+if not os.path.exists(CUSTOM_MODEL_PATH):
+    st.error(f"Custom model not found at: {CUSTOM_MODEL_PATH}")
+    st.stop()
+if not os.path.exists(COCO_MODEL_PATH):
+    st.error(f"COCO model not found at: {COCO_MODEL_PATH}")
+    st.stop()
 
-def speak(text):
+custom_model = YOLO(CUSTOM_MODEL_PATH)
+coco_model = YOLO(COCO_MODEL_PATH)
+
+# ---- INIT OCR & BLIP ----
+reader = easyocr.Reader(['en'], gpu=False)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
+
+# ---- SPEAK ----
+def speak_text(text):
     try:
+        engine = pyttsx3.init()
         engine.say(text)
         engine.runAndWait()
     except RuntimeError:
-        pass
+        st.warning("🗣️ Voice engine busy. Please wait or restart app.")
 
-def play_alert():
-    if os.path.exists(ALERT_SOUND):
-        pygame.mixer.music.load(ALERT_SOUND)
-        pygame.mixer.music.play()
+# ---- CAPTION ----
+def get_caption(pil_image):
+    inputs = blip_processor(images=pil_image, return_tensors="pt").to(device)
+    out = blip_model.generate(**inputs)
+    return blip_processor.decode(out[0], skip_special_tokens=True)
 
-def stop_alert():
-    pygame.mixer.music.stop()
-    engine.stop()
+# ---- VQA ----
+def answer_question(pil_image, question):
+    inputs = blip_processor(pil_image, question, return_tensors="pt").to(device)
+    out = blip_model.generate(**inputs)
+    return blip_processor.decode(out[0], skip_special_tokens=True)
 
-def extract_text_easyocr(image_np):
-    results = ocr_reader.readtext(image_np)
-    return " ".join([text for _, text, _ in results])
+# ---- STYLING ----
+st.set_page_config(page_title="IRIS: A Smart Vision Platform", layout="wide")
+st.markdown("""<style>
+html, body, [class*="css"] {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: #f4f6f9;
+}
+.stTabs [data-baseweb="tab"] {
+    font-size: 18px;
+    padding: 12px 24px;
+    background-color: #e6f0fb;
+    color: #1a1a1a;
+    border-radius: 8px 8px 0 0;
+}
+.stButton>button {
+    background: linear-gradient(to right, #3b82f6, #06b6d4);
+    color: white;
+    border-radius: 10px;
+    padding: 0.6em 1.2em;
+    font-weight: 600;
+}
+.alert {
+    animation: blink 1s infinite;
+    color: white;
+    background-color: #e02424;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 1rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(224,36,36,0.6);
+}
+.caption-box, .ocr-box {
+    background-color: #fef3c7;
+    padding: 1rem;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #111827;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+</style>""", unsafe_allow_html=True)
 
-# ======================
-# STREAMLIT APP CONFIG
-# ======================
-st.set_page_config(page_title="IRIS: A Smart Vision", layout="wide", page_icon="🧠")
-st.markdown(
-    "<h1 style='text-align: center; font-size: 60px; color:#4B8BBE;'>🧠 IRIS — A Smart Vision System</h1>",
-    unsafe_allow_html=True,
-)
+st.title("🚦 IRIS: A Smart Vision Platform")
+st.markdown("📸 Real-Time Detection, Captioning, OCR, and VQA")
 
-@st.cache_resource
-def load_models():
-    yolo_model, model_type = load_yolo_model()
-    caption_processor, caption_model = load_caption_model()
-    return yolo_model, model_type, caption_processor, caption_model
+# ---- TABS ----
+tab1, tab2, tab3 = st.tabs(["🖼️ Image", "🎞️ Video", "📷 Live Camera"])
 
-yolo_model, model_type, caption_processor, caption_model = load_models()
-
-if yolo_model is None:
-    st.warning("⚠️ No YOLO model found. Place `iris_best.pt` or `yolov8n.pt` in the root folder.")
-else:
-    st.success(f"✅ Using {'Custom IRIS Model' if model_type == 'custom' else 'COCO Pretrained Model'}")
-
-tab1, tab2, tab3 = st.tabs(["📷 Image", "🎥 Video", "🔴 Live Camera"])
-
-# -----------------------
-# IMAGE TAB
-# -----------------------
+# ---- IMAGE TAB ----
 with tab1:
-    st.header("Image Analysis")
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
-
+    uploaded_file = st.file_uploader("📷 Upload an Image for Analysis", type=["jpg", "jpeg", "png"])
     if uploaded_file:
-        image = Image.open(uploaded_file)
-        np_img = np.array(image)
+        image = Image.open(uploaded_file).convert("RGB")
+        image_np = np.array(image)
 
+        results_custom = custom_model(image_np)[0]
+        results_coco = coco_model(image_np)[0]
+
+        annotated = image_np.copy()
+        labels = []
+
+        for r in [results_custom, results_coco]:
+            for box in r.boxes:
+                cls = int(box.cls[0])
+                label = r.names[cls]
+                if label not in labels:
+                    labels.append(label)
+                xyxy = box.xyxy[0].cpu().numpy().astype(int)
+                cv2.rectangle(annotated, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
+                cv2.putText(annotated, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+        st.markdown("### 🧾 Image Comparison")
         col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption="Original", use_column_width=True)
+        col1.image(image_np, caption="📤 Uploaded Image", use_container_width=True)
+        col2.image(annotated, caption="🧠 Detected Image", use_container_width=True)
 
-        with st.spinner("Analyzing..."):
-            result, labels = detect_objects(np_img, yolo_model, conf=confidence)
-            img_with_boxes = np_img.copy()
+        if "pothole" in labels:
+            st.markdown('<div class="alert">🚨 ALERT: POTHOLE DETECTED! BE CAREFUL!</div>', unsafe_allow_html=True)
 
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                label = result.names[cls_id]
-                conf_score = float(box.conf[0])
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                cv2.rectangle(img_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img_with_boxes, f"{label} {conf_score:.2f}", (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        with st.expander("🔍 OCR Result"):
+            ocr_result = reader.readtext(image_np)
+            text = "\n".join([item[1] for item in ocr_result]) or "No text detected."
+            st.markdown(f'<div class="ocr-box">{text}</div>', unsafe_allow_html=True)
 
-            caption = generate_caption(image, caption_processor, caption_model)
-            detected_text = extract_text_easyocr(np_img)
+        with st.expander("🧠 Image Caption"):
+            caption = get_caption(image)
+            st.markdown(f'<div class="caption-box">{caption}</div>', unsafe_allow_html=True)
+            if st.button("🔊 Speak Caption"):
+                speak_text(caption)
 
-        with col2:
-            st.image(img_with_boxes, caption="Detections", use_column_width=True)
-        if detected_text: 
+        with st.expander("❓ Ask a Question About the Image"):
+            question = st.text_input("Your Question")
+            if question:
+                answer = answer_question(image, question)
+                st.success(f"Answer: {answer}")
+                if st.button("🔊 Speak Answer"):
+                    speak_text(answer)
 
-             st.markdown(f"<h3 style='color:#006400;'>📝 Scene Caption:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
+        # ---- HISTORY: Last 5 only
+        if "history" not in st.session_state:
+            st.session_state.history = []
 
-        if detected_text:
-            st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
-        if st.button("🔊 Speak Caption and Text"):
-            speak(caption)
-            if detected_text:
-                speak("Detected text: " + detected_text)
+        st.session_state.history.append({
+            "Mode": "Image",
+            "Detected": ", ".join(labels),
+            "Caption": caption,
+            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        st.session_state.history = st.session_state.history[-5:]
 
-        if st.button("🔊 Speak Caption and Text"):
-            speak(caption)
-            if detected_text:
-                speak("Detected text: " + detected_text)
+        with st.expander("📜 Detection History (Last 5 Images)"):
+            st.dataframe(st.session_state.history)
 
-        save_to_history(objects=labels, img=np_img, caption_text=caption)
-
-# -----------------------
-# VIDEO TAB
-# -----------------------
+# ---- VIDEO TAB ----
 with tab2:
-    st.header("Video Analysis")
-    video_file = st.file_uploader("Upload a video", type=["mp4", "avi", "mov"])
+    st.header("🎞️ Upload a Video for Analysis")
+    video_file = st.file_uploader("📼 Choose a video file...", type=["mp4", "mov", "avi"], key="video_uploader")
+    if video_file:
+        if st.button("▶ Start Video"):
+            temp_video = tempfile.NamedTemporaryFile(delete=False)
+            temp_video.write(video_file.read())
+            temp_video_path = temp_video.name
 
-    if video_file and yolo_model:
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        temp_file.write(video_file.read())
-        cap = cv2.VideoCapture(temp_file.name)
-        st_frame = st.empty()
-        stop_btn = st.button("⏹ Stop")
+            cap = cv2.VideoCapture(temp_video_path)
+            stframe = st.empty()
+            stop_video = st.button("⛔ Stop Video")
 
-        last_frame = None
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret or stop_video:
+                    break
 
-        while cap.isOpened() and not stop_btn:
-            ret, frame = cap.read()
-            if not ret:
-                break
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results_custom = custom_model(frame_rgb)[0]
+                results_coco = coco_model(frame_rgb)[0]
 
-            last_frame = frame.copy()
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result, labels = detect_objects(frame_rgb, yolo_model, conf=confidence)
+                for r in [results_custom, results_coco]:
+                    for box in r.boxes:
+                        cls = int(box.cls[0])
+                        label = r.names[cls]
+                        xyxy = box.xyxy[0].cpu().numpy().astype(int)
+                        cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
+                        cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                label = result.names[cls_id]
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, f"{label}", (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+            cap.release()
 
-            st_frame.image(frame, channels="BGR", use_column_width=True)
-
-        cap.release()
-
-        if last_frame is not None:
-            st.success("✅ Video Analysis Complete")
-            caption = generate_caption(Image.fromarray(last_frame), caption_processor, caption_model)
-            detected_text = extract_text_easyocr(cv2.cvtColor(last_frame, cv2.COLOR_BGR2RGB))
-
-            st.markdown(f"<h3 style='color:#006400;'>📝 Final Summary:</h3><p style='font-size:20px'>{caption}</p>", unsafe_allow_html=True)
-
-            if detected_text:
-                st.markdown(f"<h3 style='color:#8B0000;'>🔡 OCR Text Detected:</h3><p style='font-size:20px'>{detected_text}</p>", unsafe_allow_html=True)
-
-            if st.button("🔊 Speak Final Summary"):
-                speak(caption)
-                if detected_text:
-                    speak("Detected text: " + detected_text)
-
-            save_to_history(objects=labels, img=last_frame, caption_text=caption)
-
-# -----------------------
-# LIVE CAMERA TAB
-# -----------------------
+# ---- LIVE CAMERA TAB ----
 with tab3:
-    st.header("Live Camera")
-    run = st.checkbox("Start Camera")
-    cam_window = st.empty()
+    st.header("📷 Start Live Camera Detection")
+    if st.button("🎥 Start Camera"):
+        cap = cv2.VideoCapture(0)
+        stframe = st.empty()
+        stop_live = st.button("⛔ Stop Camera")
 
-    if run and yolo_model:
-        cam = cv2.VideoCapture(0)
-        last_alert_time = 0
-
-        while run:
-            ret, frame = cam.read()
-            if not ret:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret or stop_live:
                 break
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            result, labels = detect_objects(frame_rgb, yolo_model, conf=confidence)
+            results_custom = custom_model(frame_rgb)[0]
+            results_coco = coco_model(frame_rgb)[0]
 
-            for box in result.boxes:
-                cls_id = int(box.cls[0])
-                label = result.names[cls_id]
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, f"{label}", (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            for r in [results_custom, results_coco]:
+                for box in r.boxes:
+                    cls = int(box.cls[0])
+                    label = r.names[cls]
+                    xyxy = box.xyxy[0].cpu().numpy().astype(int)
+                    cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
+                    cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-            cam_window.image(frame, channels="BGR", use_column_width=True)
-
-            if st.button("⏹ Stop", key="stop_live"):
-                run = False
-
-        cam.release()
-
-# -----------------------
-# HISTORY (SIDEBAR REMOVED AS PER REQUEST)
-# -----------------------
-st.markdown("---")
-st.subheader("🕒 Detection History (Last 5)")
-history = load_history()
-if history:
-    for entry in history[-5:][::-1]:
-        st.image(entry['img'], width=400)
-        st.markdown(f"🕓 **{entry['time']}**")
-        st.success(f"Caption: {entry['caption']}")
-        st.markdown("---")
-else:
-    st.info("No history yet.")
+            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+        cap.release()
