@@ -1,131 +1,5 @@
 [
   {
-    "time": "2025-06-22 14:14:58",
-    "objects": [
-      "elephant",
-      "giraffe",
-      "zebra",
-      "zebra",
-      "sheep"
-    ],
-    "outfits": [],
-    "texts": [],
-    "caption": "a group of animals"
-  },
-  {
-    "time": "2025-06-22 14:20:29",
-    "objects": [
-      "person",
-      "cell phone"
-    ],
-    "outfits": [],
-    "texts": [],
-    "caption": "a man taking a selfie self self self"
-  },
-  {
-    "time": "2025-06-22 14:25:19",
-    "objects": [
-      "person",
-      "car"
-    ],
-    "outfits": [],
-    "texts": [],
-    "caption": "a man taking a picture of himself"
-  },
-  {
-    "time": "2025-06-22 14:34:59",
-    "objects": [
-      "umbrella",
-      "umbrella",
-      "dining table",
-      "person",
-      "person",
-      "umbrella",
-      "umbrella",
-      "dining table",
-      "umbrella",
-      "person"
-    ],
-    "outfits": [],
-    "texts": [],
-    "caption": "a large crowd of people"
-  },
-  {
-    "time": "2025-06-22 14:36:04",
-    "objects": [
-      "umbrella",
-      "umbrella",
-      "dining table",
-      "person",
-      "person",
-      "umbrella",
-      "umbrella",
-      "dining table",
-      "umbrella",
-      "person"
-    ],
-    "outfits": [],
-    "texts": [],
-    "caption": "a large crowd of people"
-  },
-  {
-    "time": "2025-06-23 01:07:27",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a blue car is parked on the side of a road"
-  },
-  {
-    "time": "2025-06-23 01:08:25",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a pothole in the middle of the road"
-  },
-  {
-    "time": "2025-06-23 01:33:07",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a man riding a motorcycle"
-  },
-  {
-    "time": "2025-06-23 02:01:08",
-    "objects": [],
-    "outfits": [],
-    "texts": [
-      "gettyimages",
-      "Credit: Mark Kerrison",
-      "1251750952"
-    ],
-    "caption": "a car driving through a pothole in a road"
-  },
-  {
-    "time": "2025-06-23 02:12:44",
-    "objects": [],
-    "outfits": [],
-    "texts": [
-      "gettyimages",
-      "Credit: Mark Kerrison",
-      "1251750952"
-    ],
-    "caption": "a car driving through a pothole in a road"
-  },
-  {
-    "time": "2025-06-23 02:14:17",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a man riding a motorcycle"
-  },
-  {
-    "time": "2025-06-23 02:14:50",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a man in a helmet and a helmet on a motorcycle"
-  },
-  {
     "time": "2025-06-23 02:23:50",
     "objects": [],
     "outfits": [],
@@ -142,5 +16,23 @@
     "outfits": [],
     "texts": [],
     "caption": "a blue car is parked on the side of a road"
+  },
+  {
+    "Mode": "Image",
+    "Detected": "pothole, car",
+    "Caption": "a car driving through a pothole in a road",
+    "Time": "2025-06-26 12:31:10"
+  },
+  {
+    "Mode": "Image",
+    "Detected": "pothole, car",
+    "Caption": "a car driving through a pothole in a road",
+    "Time": "2025-06-26 12:43:33"
+  },
+  {
+    "Mode": "Image",
+    "Detected": "person",
+    "Caption": "senior man walking with dog",
+    "Time": "2025-06-26 12:44:20"
   }
 ]
