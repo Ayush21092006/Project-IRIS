@@ -8,7 +8,7 @@ import time
 from PIL import Image
 from datetime import datetime
 from ultralytics import YOLO
-from transformers import BlipProcessor, BlipForConditionalGeneration
+from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQuestionAnswering
 import easyocr
 import pyttsx3
 import json
@@ -34,8 +34,14 @@ reader = easyocr.Reader(['en'], gpu=False)
 
 # ---- BLIP ----
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
+
+# For captioning
+caption_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+caption_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
+
+# For VQA
+vqa_processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+vqa_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(device)
 
 # ---- SPEECH ----
 def speak_text(text):
@@ -48,16 +54,17 @@ def speak_text(text):
 
 # ---- CAPTION ----
 def get_caption(pil_image):
-    inputs = blip_processor(images=pil_image, return_tensors="pt").to(device)
-    out = blip_model.generate(**inputs)
-    caption = blip_processor.decode(out[0], skip_special_tokens=True)
-    return caption
+    inputs = caption_processor(images=pil_image, return_tensors="pt").to(device)
+    out = caption_model.generate(**inputs)
+    return caption_processor.decode(out[0], skip_special_tokens=True)
 
 # ---- VQA ----
 def answer_question(pil_image, question):
-    inputs = blip_processor(pil_image, question, return_tensors="pt").to(device)
-    out = blip_model.generate(**inputs)
-    return blip_processor.decode(out[0], skip_special_tokens=True)
+    inputs = vqa_processor(images=pil_image, text=question, return_tensors="pt").to(device)
+    output_ids = vqa_model.generate(pixel_values=inputs["pixel_values"], input_ids=inputs["input_ids"])
+    answer = vqa_processor.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    return answer
+
 
 # ---- PAGE UI ----
 st.set_page_config(page_title="IRIS: A Smart Vision Platform", layout="wide")
@@ -95,7 +102,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🚦 IRIS: Visual AI for Smart Interaction System ")
-st.markdown("<div style='font-size:30px';>📸 SEE. SENSE. UNDERSTAND.Going beyond detection to interaction </div>", unsafe_allow_html=True)
+st.markdown("<div style='font-size:30px';>📸 SEE. SENSE. UNDERSTAND. Going beyond detection to interaction </div>", unsafe_allow_html=True)
 
 # ---- HISTORY ----
 def load_history():
@@ -156,11 +163,16 @@ with tab1:
 
         with st.expander("❓ Ask a Question About the Image"):
             question = st.text_input("Your Question")
+
             if question:
-                answer = answer_question(image, question)
-                st.success(f"Answer: {answer}")
-                if st.button("🔊 Speak Answer"):
-                    speak_text(answer)
+                with st.spinner("🤖 Thinking..."):
+                    try:
+                        answer = answer_question(image, question)
+                        st.success(f"🗨️ Answer: {answer}")
+                        if st.button("🔊 Speak Answer"):
+                            speak_text(answer)
+                    except Exception as e:
+                        st.error(f"⚠️ Failed to generate answer: {e}")
 
         st.session_state.history.append({
             "Mode": "Image",
@@ -177,6 +189,7 @@ with tab1:
 with tab2:
     st.header("🎞️ Upload a Video for Analysis")
     video_file = st.file_uploader("📼 Choose a video file...", type=["mp4", "mov", "avi"], key="video_uploader")
+
     if video_file:
         if st.button("▶ Start Video"):
             temp_video = tempfile.NamedTemporaryFile(delete=False)
@@ -184,16 +197,20 @@ with tab2:
             temp_video_path = temp_video.name
 
             cap = cv2.VideoCapture(temp_video_path)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            delay = 1 / fps if fps > 0 else 1 / 24
-
             stframe = st.empty()
             stop_video = st.button("⛔ Stop Video")
+
+            frame_count = 0
+            skip_rate = 15
 
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret or stop_video:
                     break
+
+                frame_count += 1
+                if frame_count % skip_rate != 0:
+                    continue
 
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results_custom = custom_model(frame_rgb)[0]
@@ -205,11 +222,13 @@ with tab2:
                         label = r.names[cls]
                         xyxy = box.xyxy[0].cpu().numpy().astype(int)
                         cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
-                        cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+                        cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
                 stframe.image(frame_rgb, channels="RGB", use_container_width=True)
-                time.sleep(delay)
+                time.sleep(0.001)
+
             cap.release()
+            st.success("✅ Video processing complete or stopped.")
 
 # ---- LIVE CAMERA TAB ----
 with tab3:
@@ -221,10 +240,18 @@ with tab3:
         cap = cv2.VideoCapture(0)
         stframe = st.empty()
 
+        frame_count = 0
+        skip_rate = 10
+        prev_time = time.time()
+
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret or stop_button:
                 break
+
+            frame_count += 1
+            if frame_count % skip_rate != 0:
+                continue
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results_custom = custom_model(frame_rgb)[0]
@@ -238,5 +265,13 @@ with tab3:
                     cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                     cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
+            curr_time = time.time()
+            fps = 1 / (curr_time - prev_time)
+            prev_time = curr_time
+            cv2.putText(frame_rgb, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+
             stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+            time.sleep(0.001)
+
         cap.release()
+        st.success("✅ Camera stopped")

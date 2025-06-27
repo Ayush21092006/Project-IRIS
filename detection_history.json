@@ -1,38 +1,32 @@
 [
   {
-    "time": "2025-06-23 02:23:50",
-    "objects": [],
-    "outfits": [],
-    "texts": [
-      "gettyimages",
-      "Credit: Mark Kerrison",
-      "1251750952"
-    ],
-    "caption": "a car driving through a pothole in a road"
-  },
-  {
-    "time": "2025-06-23 02:42:07",
-    "objects": [],
-    "outfits": [],
-    "texts": [],
-    "caption": "a blue car is parked on the side of a road"
+    "Mode": "Image",
+    "Detected": "pothole",
+    "Caption": "a pothole in the road",
+    "Time": "2025-06-27 12:03:27"
   },
   {
     "Mode": "Image",
-    "Detected": "pothole, car",
-    "Caption": "a car driving through a pothole in a road",
-    "Time": "2025-06-26 12:31:10"
+    "Detected": "pothole",
+    "Caption": "a pothole in the road",
+    "Time": "2025-06-27 12:04:00"
   },
   {
     "Mode": "Image",
-    "Detected": "pothole, car",
-    "Caption": "a car driving through a pothole in a road",
-    "Time": "2025-06-26 12:43:33"
+    "Detected": "pothole",
+    "Caption": "a pothole in the road",
+    "Time": "2025-06-27 12:05:05"
   },
   {
     "Mode": "Image",
-    "Detected": "person",
-    "Caption": "senior man walking with dog",
-    "Time": "2025-06-26 12:44:20"
+    "Detected": "pothole",
+    "Caption": "a pothole in the road",
+    "Time": "2025-06-27 12:09:34"
+  },
+  {
+    "Mode": "Image",
+    "Detected": "pothole",
+    "Caption": "a pothole in the road",
+    "Time": "2025-06-27 12:15:10"
   }
 ]
