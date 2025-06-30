@@ -67,42 +67,88 @@ def answer_question(pil_image, question):
 
 
 # ---- PAGE UI ----
-st.set_page_config(page_title="IRIS: A Smart Vision Platform", layout="wide")
+# Load background image using HTML + CSS
+import streamlit as st
+
+st.set_page_config(page_title="IRIS: Visual AI", layout="wide")
+
+# Custom CSS Styling
 st.markdown("""
-    <style>
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', sans-serif;
-        background-color: #f8fafc;
-    }
-    .stTabs [data-baseweb="tab"] {
-        font-size: 18px;
-        padding: 12px 24px;
-        background-color: #eff6ff;
-        color: #1a1a1a;
-        border-radius: 8px 8px 0 0;
-    }
-    .stButton>button {
-        background: linear-gradient(to right, #3b82f6, #06b6d4);
-        color: white;
-        border-radius: 10px;
-        padding: 0.6em 1.2em;
-        font-weight: 600;
-        border: none;
-    }
-    .alert {
-        background-color: #e02424;
-        color: white;
-        padding: 1rem;
-        font-weight: bold;
-        font-size: 18px;
-        border-radius: 10px;
-        text-align: center;
-    }
-    </style>
+<style>
+/* Background with gradient overlay */
+body {
+    background: linear-gradient(to right, rgba(15,23,42,0.8), rgba(30,41,59,0.9)),
+            url('download.jpeg');
+
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: white;
+}
+
+/* Global font and spacing */
+html, body, [class*="css"] {
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 18px;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab"] {
+    background-color: rgba(15, 23, 42, 0.85) !important;
+    color: white !important;
+    font-size: 20px;
+    font-weight: 600;
+    border-radius: 12px 12px 0 0 !important;
+    margin-right: 6px;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: #1e293b !important;
+    color: #60a5fa !important;
+    transform: scale(1.03);
+}
+
+/* File uploader */
+.stFileUploader {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 2px dashed #60a5fa;
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.4);
+}
+.stFileUploader:hover {
+    background-color: rgba(30, 41, 59, 0.85) !important;
+    border: 2px solid #3b82f6;
+}
+
+/* Buttons */
+.stButton>button {
+    background: linear-gradient(to right, #3b82f6, #06b6d4);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+    transition: 0.3s ease-in-out;
+}
+.stButton>button:hover {
+    background: linear-gradient(to right, #2563eb, #0891b2);
+    transform: scale(1.05);
+}
+</style>
 """, unsafe_allow_html=True)
 
-st.title("🚦 IRIS: Visual AI for Smart Interaction System ")
-st.markdown("<div style='font-size:30px';>📸 SEE. SENSE. UNDERSTAND. Going beyond detection to interaction </div>", unsafe_allow_html=True)
+# Beautiful Title Block
+st.markdown("""
+<div style='text-align:center; padding: 50px 0;'>
+    <h1 style='font-size: 52px; font-weight: bold; color: #ffffff; text-shadow: 2px 2px #000;'>🚦 IRIS: Visual AI for Smart Interaction System</h1>
+    <p style='font-size: 28px; color: #e2e8f0; font-weight: 500;'>
+        📸 <b>SEE. SENSE. UNDERSTAND.</b> <br>Going beyond detection to interaction.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ---- HISTORY ----
 def load_history():
@@ -185,6 +231,7 @@ with tab1:
         with st.expander("📜 Detection History"):
             st.dataframe(st.session_state.history[-5:])
 
+
 # ---- VIDEO TAB ----
 with tab2:
     st.header("🎞️ Upload a Video for Analysis")
@@ -201,7 +248,7 @@ with tab2:
             stop_video = st.button("⛔ Stop Video")
 
             frame_count = 0
-            skip_rate = 15
+            skip_rate = 20
 
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -213,8 +260,10 @@ with tab2:
                     continue
 
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results_custom = custom_model(frame_rgb)[0]
-                results_coco = coco_model(frame_rgb)[0]
+                frame_rgb = cv2.resize(frame_rgb, (360, 240))   # 👈 Reduce resolution
+                results_custom = custom_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
+                results_coco = coco_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
+
 
                 for r in [results_custom, results_coco]:
                     for box in r.boxes:
@@ -224,9 +273,9 @@ with tab2:
                         cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                         cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-                stframe.image(frame_rgb, channels="RGB", use_container_width=True)
-                time.sleep(0.001)
+                stframe.image(frame_rgb, channels="RGB", width=800)
 
+                # time.sleep(0.0001)  # Or completely remove it
             cap.release()
             st.success("✅ Video processing complete or stopped.")
 
@@ -254,8 +303,10 @@ with tab3:
                 continue
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results_custom = custom_model(frame_rgb)[0]
-            results_coco = coco_model(frame_rgb)[0]
+            frame_rgb = cv2.resize(frame_rgb, (360, 240)) # 👈 Reduce resolution
+            results_custom = custom_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
+            results_coco = coco_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
+
 
             for r in [results_custom, results_coco]:
                 for box in r.boxes:
@@ -263,15 +314,15 @@ with tab3:
                     label = r.names[cls]
                     xyxy = box.xyxy[0].cpu().numpy().astype(int)
                     cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
-                    cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                    cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             curr_time = time.time()
             fps = 1 / (curr_time - prev_time)
             prev_time = curr_time
             cv2.putText(frame_rgb, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
-            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
-            time.sleep(0.001)
+            stframe.image(frame_rgb, channels="RGB", width=800)
+            # time.sleep(0.001)
 
         cap.release()
         st.success("✅ Camera stopped")
