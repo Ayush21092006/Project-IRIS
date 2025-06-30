@@ -14,7 +14,7 @@ import pyttsx3
 import json
 
 # ---- PATHS ----
-CUSTOM_MODEL_PATH = "models/pothole_yolov8n.pt"
+CUSTOM_MODEL_PATH = "models/bestpothole.pt"
 COCO_MODEL_PATH = "models/coco/yolov8s.pt"
 HISTORY_FILE = "detection_history.json"
 
@@ -290,7 +290,7 @@ with tab3:
         stframe = st.empty()
 
         frame_count = 0
-        skip_rate = 10
+        skip_rate = 20
         prev_time = time.time()
 
         while cap.isOpened():
