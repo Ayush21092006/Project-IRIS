@@ -12,6 +12,98 @@ from transformers import BlipProcessor, BlipForConditionalGeneration, BlipForQue
 import easyocr
 import pyttsx3
 import json
+import base64
+
+
+# ---- FUNCTION TO CONVERT LOCAL IMAGE TO BASE64 ----
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+# ---- SPLASH SCREEN with Rotating Logo ----
+if "splash_shown" not in st.session_state:
+    st.session_state.splash_shown = False
+
+if not st.session_state.splash_shown:
+    st.set_page_config(page_title="IRIS", layout="wide")
+
+    # Load logo from local file inside assets folder
+    logo_path = os.path.join("assets", "iris_logo.png")  # Make sure path is correct
+    img_base64 = get_base64_image(logo_path)
+
+    st.markdown(f"""
+        <style>
+        body {{
+            background-color: #0f172a;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+        }}
+
+        .splash-logo {{
+            text-align: center;
+            margin-top: 100px;
+                
+        }}
+
+        .splash-logo img {{
+            width: 150px;
+            height: auto;
+            object-fit: contain;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 12px #3b82f6);
+        }}
+
+        @keyframes rotateLogo {{
+            from {{ transform: rotate(0deg); }}
+            to {{ transform: rotate(360deg); }}
+        }}
+
+        .splash-title {{
+            text-align: center;
+            font-size: 48px;
+            font-weight: bold;
+            margin-top: 20px;
+            color: #60a5fa;
+            text-shadow: 2px 2px 8px #000;
+        }}
+
+        .splash-subtitle {{
+            text-align: center;
+            font-size: 22px;
+            color: #94a3b8;
+            font-style: italic;
+        }}
+
+        .infinity-loader {{
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 60px;
+            color: #38bdf8;
+            margin-top: 50px;
+            animation: spin 3s linear infinite;
+        }}
+
+        @keyframes spin {{
+            0%   {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        </style>
+
+        <div class="splash-logo">
+            <img src="data:image/png;base64,{img_base64}" alt="IRIS Logo">
+        </div>
+        <div class="splash-title">IRIS</div>
+        <div class="splash-subtitle">Smart Vision Assistant</div>
+        <div class="infinity-loader">∞</div>
+    """, unsafe_allow_html=True)
+
+    # Wait while the splash screen shows and logo rotates
+    time.sleep(2)  # splash duration
+    st.session_state.splash_shown = True
+    st.rerun()
+
+
 
 # ---- PATHS ----
 CUSTOM_MODEL_PATH = "models/bestpothole.pt"
@@ -67,87 +159,219 @@ def answer_question(pil_image, question):
 
 
 # ---- PAGE UI ----
-# Load background image using HTML + CSS
-import streamlit as st
+# ---- PAGE CONFIG ----
 
 st.set_page_config(page_title="IRIS: Visual AI", layout="wide")
 
-# Custom CSS Styling
+# ---- CUSTOM STYLES ----
 st.markdown("""
 <style>
-/* Background with gradient overlay */
+/* --- Background & Layout with Animated Gradient --- */
 body {
-    background: linear-gradient(to right, rgba(15,23,42,0.8), rgba(30,41,59,0.9)),
-            url('download.jpeg');
-
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    color: white;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    animation: gradientFlow 10s ease infinite;
+    background-size: 400% 400%;
+}
+@keyframes gradientFlow {
+    0% {background-position: 0% 50%;}
+    50% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
 }
 
-/* Global font and spacing */
+/* --- Font and Default Styling --- */
 html, body, [class*="css"] {
     font-family: 'Segoe UI', sans-serif;
     font-size: 18px;
+    color: white;
 }
 
-/* Tabs */
+/* --- Header Logo Animation (ROTATING + PULSATING) --- */
+.logo-box {
+    text-align: center;
+    margin-top: 1rem;
+}
+.logo-box img {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    border: 4px solid #60a5fa;
+    box-shadow: 0 0 10px #60a5fa;
+    animation: rotateLogo 4s linear infinite, pulseLogo 4s ease-in-out infinite;
+}
+@keyframes rotateLogo {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes pulseLogo {
+    0%, 100% { box-shadow: 0 0 20px #60a5fa; }
+    50% { box-shadow: 0 0 35px #3b82f6; }
+}
+
+/* --- Main Title Animation --- */
+.iris-title {
+    font-size: 52px;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 2px 2px #000;
+    text-align: center;
+    animation: floatText 3s ease-in-out infinite;
+}
+@keyframes floatText {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+/* --- Subtitle Styling --- */
+.subtitle {
+    text-align: center;
+    font-size: 22px;
+    color: #cbd5e1;
+}
+.tagline {
+    text-align: center;
+    font-style: italic;
+    color: #94a3b8;
+    margin-top: 0.5em;
+    margin-bottom: 2em;
+}
+
+/* --- Tabs with Hover Glow --- */
 .stTabs [data-baseweb="tab"] {
-    background-color: rgba(15, 23, 42, 0.85) !important;
+    background-color: #1e293b !important;
     color: white !important;
     font-size: 20px;
     font-weight: 600;
-    border-radius: 12px 12px 0 0 !important;
-    margin-right: 6px;
+    border-radius: 10px 10px 0 0;
+    padding: 1rem;
+    margin-right: 8px;
+    box-shadow: 0 0 5px #0ea5e9;
+    transition: 0.3s;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    background-color: #1e293b !important;
     color: #60a5fa !important;
-    transform: scale(1.03);
+    background-color: #0f172a !important;
+    transform: scale(1.04);
+    box-shadow: 0 0 15px #38bdf8;
 }
 
-/* File uploader */
+/* --- File Uploader Neon Box --- */
 .stFileUploader {
-    background-color: rgba(0, 0, 0, 0.5) !important;
+    background-color: rgba(0, 0, 0, 0.6) !important;
     padding: 1.5rem;
     border-radius: 16px;
     border: 2px dashed #60a5fa;
-    box-shadow: 0 0 12px rgba(96, 165, 250, 0.4);
+    box-shadow: 0 0 15px rgba(96, 165, 250, 0.6);
+    margin-bottom: 2rem;
+    transition: 0.4s;
 }
 .stFileUploader:hover {
-    background-color: rgba(30, 41, 59, 0.85) !important;
-    border: 2px solid #3b82f6;
+    border-color: #3b82f6;
+    box-shadow: 0 0 25px #38bdf8;
 }
 
-/* Buttons */
+/* --- Centered Button Container --- */
+div.stButton {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- Button Styling --- */
 .stButton>button {
     background: linear-gradient(to right, #3b82f6, #06b6d4);
     color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 0.75rem 1.5rem;
-    font-size: 18px;
+    font-size: 22px;
     font-weight: bold;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
-    transition: 0.3s ease-in-out;
+    border: none;
+    border-radius: 14px;
+    padding: 1rem 2rem;
+    margin: 1rem;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
+    transition: 0.4s ease;
 }
 .stButton>button:hover {
     background: linear-gradient(to right, #2563eb, #0891b2);
-    transform: scale(1.05);
+    transform: scale(1.08);
+    box-shadow: 0 0 20px #3b82f6;
+}
+
+/* --- Radio Buttons (mode selection) --- */
+.stRadio > div {
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+.stRadio > div label {
+    background-color: rgba(30, 41, 59, 0.85);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    color: #e2e8f0;
+    font-weight: bold;
+    font-size: 20px;
+    cursor: pointer;
+    transition: 0.3s ease;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+}
+.stRadio > div label:hover {
+    background-color: #334155;
+    color: #60a5fa;
+    transform: scale(1.08);
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Beautiful Title Block
-st.markdown("""
-<div style='text-align:center; padding: 50px 0;'>
-    <h1 style='font-size: 52px; font-weight: bold; color: #ffffff; text-shadow: 2px 2px #000;'>🚦 IRIS: Visual AI for Smart Interaction System</h1>
-    <p style='font-size: 28px; color: #e2e8f0; font-weight: 500;'>
-        📸 <b>SEE. SENSE. UNDERSTAND.</b> <br>Going beyond detection to interaction.
+
+# ---- FUNCTION TO ENCODE LOCAL IMAGE TO BASE64 ----
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+# ---- Load base64 logo from assets ----
+logo_base64 = get_base64_image("assets/iris_logo.png")
+
+# ---- HEADER UI ----
+st.markdown(f"""
+    <style>
+    .logo-box {{
+        text-align: center;
+        margin-top: 5px;
+        margin-bottom: 10px;
+    }}
+    .logo-box img {{
+        width: 150px;
+        height: auto;
+        filter: drop-shadow(0 0 10px #3b82f6);
+        animation: float 3s ease-in-out infinite;
+    }}
+    @keyframes float {{
+        0% {{ transform: translateY(0); }}
+        50% {{ transform: translateY(-10px); }}
+        100% {{ transform: translateY(0); }}
+    }}
+    .iris-title {{
+        text-align: center;
+        font-size: 36px;
+        font-weight: bold;
+        color: #60a5fa;
+        margin-top: 10px;
+        text-shadow: 2px 2px 8px #000;
+    }}
+    </style>
+
+    <div class="logo-box">
+        <img src="data:image/png;base64,{logo_base64}" alt="IRIS Logo">
+    </div>
+
+    <div class="iris-title">
+        IRIS: Visual AI for Smart Interaction System
+    </div>
+
+    <p style='text-align:center; font-size: 24px; color: #e2e8f0; font-weight: 500; margin-top: 8px;'>
+        <b>SEE. SENSE. UNDERSTAND.</b><br>Going beyond detection to interaction.
     </p>
-</div>
 """, unsafe_allow_html=True)
+
 
 
 # ---- HISTORY ----
