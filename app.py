@@ -13,7 +13,17 @@ import easyocr
 import pyttsx3
 import json
 import base64
+import pygame
 
+# ---- DEVICE ----
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# ---- LOAD BLIP MODELS ----
+caption_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+caption_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
+
+vqa_processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+vqa_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(device)
 
 # ---- FUNCTION TO CONVERT LOCAL IMAGE TO BASE64 ----
 def get_base64_image(image_path):
@@ -26,84 +36,27 @@ if "splash_shown" not in st.session_state:
 
 if not st.session_state.splash_shown:
     st.set_page_config(page_title="IRIS", layout="wide")
-
-    # Load logo from local file inside assets folder
-    logo_path = os.path.join("assets", "iris_logo.png")  # Make sure path is correct
+    logo_path = os.path.join("assets", "iris_logo.png")
     img_base64 = get_base64_image(logo_path)
-
     st.markdown(f"""
         <style>
-        body {{
-            background-color: #0f172a;
-            color: white;
-            font-family: 'Segoe UI', sans-serif;
-        }}
-
-        .splash-logo {{
-            text-align: center;
-            margin-top: 100px;
-                
-        }}
-
-        .splash-logo img {{
-            width: 150px;
-            height: auto;
-            object-fit: contain;
-            animation: float 3s ease-in-out infinite;
-            filter: drop-shadow(0 0 12px #3b82f6);
-        }}
-
-        @keyframes rotateLogo {{
-            from {{ transform: rotate(0deg); }}
-            to {{ transform: rotate(360deg); }}
-        }}
-
-        .splash-title {{
-            text-align: center;
-            font-size: 48px;
-            font-weight: bold;
-            margin-top: 20px;
-            color: #60a5fa;
-            text-shadow: 2px 2px 8px #000;
-        }}
-
-        .splash-subtitle {{
-            text-align: center;
-            font-size: 22px;
-            color: #94a3b8;
-            font-style: italic;
-        }}
-
-        .infinity-loader {{
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 60px;
-            color: #38bdf8;
-            margin-top: 50px;
-            animation: spin 3s linear infinite;
-        }}
-
-        @keyframes spin {{
-            0%   {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
+        body {{ background-color: #0f172a; color: white; font-family: 'Segoe UI', sans-serif; }}
+        .splash-logo {{ text-align: center; margin-top: 100px; }}
+        .splash-logo img {{ width: 150px; height: auto; object-fit: contain; animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 12px #3b82f6); }}
+        @keyframes rotateLogo {{ from {{ transform: rotate(0deg); }} to {{ transform: rotate(360deg); }} }}
+        .splash-title {{ text-align: center; font-size: 48px; font-weight: bold; margin-top: 20px; color: #60a5fa; text-shadow: 2px 2px 8px #000; }}
+        .splash-subtitle {{ text-align: center; font-size: 22px; color: #94a3b8; font-style: italic; }}
+        .infinity-loader {{ display: flex; justify-content: center; align-items: center; font-size: 60px; color: #38bdf8; margin-top: 50px; animation: spin 3s linear infinite; }}
+        @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
         </style>
-
-        <div class="splash-logo">
-            <img src="data:image/png;base64,{img_base64}" alt="IRIS Logo">
-        </div>
+        <div class="splash-logo"><img src="data:image/png;base64,{img_base64}" alt="IRIS Logo"></div>
         <div class="splash-title">IRIS</div>
         <div class="splash-subtitle">Smart Vision Assistant</div>
         <div class="infinity-loader">∞</div>
     """, unsafe_allow_html=True)
-
-    # Wait while the splash screen shows and logo rotates
-    time.sleep(2)  # splash duration
+    time.sleep(2)
     st.session_state.splash_shown = True
     st.rerun()
-
-
 
 # ---- PATHS ----
 CUSTOM_MODEL_PATH = "models/bestpothole.pt"
@@ -124,25 +77,30 @@ coco_model = YOLO(COCO_MODEL_PATH)
 # ---- OCR ----
 reader = easyocr.Reader(['en'], gpu=False)
 
-# ---- BLIP ----
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# For captioning
-caption_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-caption_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
-
-# For VQA
-vqa_processor = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
-vqa_model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(device)
-
-# ---- SPEECH ----
+# ---- SPEECH AND SOUND ----
 def speak_text(text):
     try:
         engine = pyttsx3.init()
         engine.say(text)
         engine.runAndWait()
     except RuntimeError:
-        st.warning("🗣️ Voice engine busy. Please wait or restart app.")
+        st.warning("🗣 Voice engine busy. Please wait or restart app.")
+
+def play_beep():
+    pygame.mixer.init()
+    beep_sound = pygame.mixer.Sound("beep.wav")
+    beep_sound.play()
+
+# ---- DETECTION DISTANCE LOGIC ----
+def is_pothole_close(xyxy, frame_height, threshold_distance_m=150):
+    """
+    Estimate distance based on bounding box vertical position (y2).
+    The closer to the bottom of the frame, the closer the pothole.
+    """
+    y2 = xyxy[3]  # Bottom of the bounding box
+    normalized = y2 / frame_height  # 1.0 = bottom, 0.0 = top
+    estimated_distance_m = (1 - normalized) * 150  # Approximate 10m range
+    return estimated_distance_m <= threshold_distance_m
 
 # ---- CAPTION ----
 def get_caption(pil_image):
@@ -156,7 +114,6 @@ def answer_question(pil_image, question):
     output_ids = vqa_model.generate(pixel_values=inputs["pixel_values"], input_ids=inputs["input_ids"])
     answer = vqa_processor.tokenizer.decode(output_ids[0], skip_special_tokens=True)
     return answer
-
 
 # ---- PAGE UI ----
 # ---- PAGE CONFIG ----
@@ -320,13 +277,6 @@ div.stButton {
 }
 </style>
 """, unsafe_allow_html=True)
-
-
-# ---- FUNCTION TO ENCODE LOCAL IMAGE TO BASE64 ----
-def get_base64_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
-
 # ---- Load base64 logo from assets ----
 logo_base64 = get_base64_image("assets/iris_logo.png")
 
@@ -372,8 +322,6 @@ st.markdown(f"""
     </p>
 """, unsafe_allow_html=True)
 
-
-
 # ---- HISTORY ----
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -389,9 +337,10 @@ if "history" not in st.session_state:
     st.session_state.history = load_history()
 
 # ---- TABS ----
-tab1, tab2, tab3 = st.tabs(["🖼️ Image", "🎞️ Video", "📷 Live Camera"])
+tab1, tab2, tab3 = st.tabs(["🖼 Image", "🎞 Video", "📷 Live Camera"])
 
-# ---- IMAGE TAB ----
+
+# ---- TAB 1: IMAGE ----
 with tab1:
     uploaded_file = st.file_uploader("📷 Upload an Image for Analysis", type=["jpg", "jpeg", "png"])
     if uploaded_file:
@@ -402,20 +351,34 @@ with tab1:
 
         annotated = image_np.copy()
         labels = []
-
         for r in [results_custom, results_coco]:
             for box in r.boxes:
                 cls = int(box.cls[0])
                 label = r.names[cls]
+                xyxy = box.xyxy[0].cpu().numpy().astype(int)
+                if label.lower() == "pothole" and is_pothole_close(xyxy, image_np.shape[0]):
+                    speak_text("Pothole ahead. Be careful.")
+                    play_beep()
                 if label not in labels:
                     labels.append(label)
-                xyxy = box.xyxy[0].cpu().numpy().astype(int)
                 cv2.rectangle(annotated, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                 cv2.putText(annotated, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
         col1, col2 = st.columns(2)
         col1.image(image_np, caption="Original Image", use_container_width=True)
         col2.image(annotated, caption="Detected Image", use_container_width=True)
+
+        caption = ""
+        if "pothole" in labels:
+            st.warning("🚨 Pothole detected ahead!")
+
+        st.session_state.history.append({
+            "Mode": "Image",
+            "Detected": ", ".join(labels),
+            "Caption": caption,
+            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        save_history(st.session_state.history)
 
         if "pothole" in labels:
             st.markdown('<div class="alert">🚨 ALERT: POTHOLE DETECTED! BE CAREFUL!</div>', unsafe_allow_html=True)
@@ -438,11 +401,11 @@ with tab1:
                 with st.spinner("🤖 Thinking..."):
                     try:
                         answer = answer_question(image, question)
-                        st.success(f"🗨️ Answer: {answer}")
+                        st.success(f"🗨 Answer: {answer}")
                         if st.button("🔊 Speak Answer"):
                             speak_text(answer)
                     except Exception as e:
-                        st.error(f"⚠️ Failed to generate answer: {e}")
+                        st.error(f"⚠ Failed to generate answer: {e}")
 
         st.session_state.history.append({
             "Mode": "Image",
@@ -455,10 +418,9 @@ with tab1:
         with st.expander("📜 Detection History"):
             st.dataframe(st.session_state.history[-5:])
 
-
 # ---- VIDEO TAB ----
 with tab2:
-    st.header("🎞️ Upload a Video for Analysis")
+    st.header("🎞 Upload a Video for Analysis")
     video_file = st.file_uploader("📼 Choose a video file...", type=["mp4", "mov", "avi"], key="video_uploader")
 
     if video_file:
@@ -471,82 +433,80 @@ with tab2:
             stframe = st.empty()
             stop_video = st.button("⛔ Stop Video")
 
-            frame_count = 0
-            skip_rate = 20
+            # Get video FPS for smoother display
+            frame_rate = cap.get(cv2.CAP_PROP_FPS)
+            delay = 1 / frame_rate if frame_rate > 0 else 0.03
 
             while cap.isOpened():
                 ret, frame = cap.read()
-                if not ret or stop_video:
+                if not ret:
                     break
 
-                frame_count += 1
-                if frame_count % skip_rate != 0:
-                    continue
-
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame_rgb = cv2.resize(frame_rgb, (360, 240))   # 👈 Reduce resolution
-                results_custom = custom_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
-                results_coco = coco_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
 
+                # Run predictions from both models
+                results_custom = custom_model.predict(frame_rgb, imgsz=360, conf=0.3)[0]
+                results_coco = coco_model.predict(frame_rgb, imgsz=360, conf=0.3)[0]
 
+                # Combine results
                 for r in [results_custom, results_coco]:
                     for box in r.boxes:
                         cls = int(box.cls[0])
                         label = r.names[cls]
                         xyxy = box.xyxy[0].cpu().numpy().astype(int)
+
+                        if label.lower() == "pothole" and is_pothole_close(xyxy, frame.shape[0], threshold_distance_m=5):
+                            play_beep()
+                            cv2.putText(frame_rgb, "⚠ Pothole ahead! Be careful!", (30, 60),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+
                         cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                         cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-                stframe.image(frame_rgb, channels="RGB", width=800)
+                stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+                time.sleep(delay)
 
-                # time.sleep(0.0001)  # Or completely remove it
             cap.release()
-            st.success("✅ Video processing complete or stopped.")
+            st.success("✅ Video processing complete.")
 
-# ---- LIVE CAMERA TAB ----
+
+
+# ---- TAB 3: LIVE ----
 with tab3:
     st.header("📷 Live Camera Detection")
     start_button = st.button("▶ Start Live Camera")
-    stop_button = st.button("⛔ Stop Camera")
 
     if start_button:
         cap = cv2.VideoCapture(0)
         stframe = st.empty()
 
-        frame_count = 0
-        skip_rate = 20
-        prev_time = time.time()
+        stop_signal = st.button("⛔ Stop Camera")
 
-        while cap.isOpened():
+        while cap.isOpened() and not stop_signal:
             ret, frame = cap.read()
-            if not ret or stop_button:
+            if not ret:
                 break
 
-            frame_count += 1
-            if frame_count % skip_rate != 0:
-                continue
-
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_rgb = cv2.resize(frame_rgb, (360, 240)) # 👈 Reduce resolution
-            results_custom = custom_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
-            results_coco = coco_model.predict(frame_rgb, imgsz=256, conf=0.3)[0]
-
+            results_custom = custom_model.predict(frame_rgb, imgsz=360, conf=0.3)[0]
+            results_coco = coco_model.predict(frame_rgb, imgsz=360, conf=0.3)[0]
 
             for r in [results_custom, results_coco]:
                 for box in r.boxes:
                     cls = int(box.cls[0])
                     label = r.names[cls]
                     xyxy = box.xyxy[0].cpu().numpy().astype(int)
+
+                    if label.lower() == "pothole" and is_pothole_close(xyxy, frame.shape[0], threshold_distance_m=5):
+                        speak_text("Pothole ahead. Be careful.")
+                        play_beep()
+                        cv2.putText(frame_rgb, "⚠ Pothole ahead! Be careful!", (30, 60),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+
                     cv2.rectangle(frame_rgb, xyxy[:2], xyxy[2:], (0, 255, 0), 2)
                     cv2.putText(frame_rgb, label, xyxy[:2], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-            curr_time = time.time()
-            fps = 1 / (curr_time - prev_time)
-            prev_time = curr_time
-            cv2.putText(frame_rgb, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-
-            stframe.image(frame_rgb, channels="RGB", width=800)
-            # time.sleep(0.001)
+            stframe.image(frame_rgb, channels="RGB", use_container_width=800)
 
         cap.release()
-        st.success("✅ Camera stopped")
+        st.success("✅ Live detection stopped.")
